@@ -1,0 +1,29 @@
+{
+	"ImportPath": "github.com/Isabek/manas-food-api",
+	"GoVersion": "go1.6",
+	"GodepVersion": "v75",
+	"Deps": [
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Comment": "v1.1-7-g08b5f42",
+			"Rev": "08b5f424b9271eedf6f9f0ce86cb9396ed337a42"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Comment": "v1.1-27-g757bef9",
+			"Rev": "757bef944d0f21880861c2dd9c871ca543023cba"
+		},
+		{
+			"ImportPath": "github.com/yhat/scrape",
+			"Rev": "24b7890b0945459dbf91743e4d2ac5d75a51fee2"
+		},
+		{
+			"ImportPath": "golang.org/x/net/html",
+			"Rev": "4971afdc2f162e82d185353533d3cf16188a9f4e"
+		},
+		{
+			"ImportPath": "golang.org/x/net/html/atom",
+			"Rev": "4971afdc2f162e82d185353533d3cf16188a9f4e"
+		}
+	]
+}
