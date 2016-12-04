@@ -5,6 +5,7 @@ import (
 	"log"
 	"encoding/json"
 	"os"
+	"fmt"
 
 	"github.com/yhat/scrape"
 	"golang.org/x/net/html"
@@ -19,13 +20,14 @@ type Menu struct {
 }
 
 type Food struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	Name     string `json:"name"`
+	ImageUrl string `json:"image_url"`
 }
 
 type Menus []Menu
 
 const BASE_URL string = "http://ihale.manas.edu.kg/kki.php"
+const CLOUDINARY_IMAGE_URL = "http://res.cloudinary.com/itashiev/image/upload/%s.jpeg";
 
 func parseFoods() (menus Menus, err error) {
 	resp, err := http.Get(BASE_URL)
@@ -58,13 +60,17 @@ func parseFoods() (menus Menus, err error) {
 				menu.Date = scrape.Text(rawFood)
 			} else if (id == 1 || id == 3 || id == 5 || id == 7) {
 				name := scrape.Text(rawFood)
-				menu.Foods = append(menu.Foods, Food{Name:name, Slug:slugify.Slugify(name)})
+				menu.Foods = append(menu.Foods, Food{Name:name, ImageUrl:getImageUrl(name)})
 			}
 		}
 		menus = append(menus, menu)
 	}
 
 	return menus, nil
+}
+
+func getImageUrl(name string) string {
+	return fmt.Sprintf(CLOUDINARY_IMAGE_URL, slugify.Slugify(name))
 }
 
 func FoodsHandler(w http.ResponseWriter, r *http.Request) {
