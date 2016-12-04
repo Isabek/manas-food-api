@@ -3,36 +3,39 @@ package main
 import (
 	"net/http"
 	"log"
+	"encoding/json"
+	"os"
 
 	"github.com/yhat/scrape"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 	"github.com/gorilla/mux"
-	"encoding/json"
-	"os"
+	"github.com/Machiel/slugify"
 )
 
-type Food struct {
-	Date       string `json:"date"`
-	FirstFood  string `json:"first_food"`
-	SecondFood string `json:"second_food"`
-	ThirdFood  string `json:"third_food"`
-	FourthFood string `json:"fourth_food"`
+type Menu struct {
+	Date  string `json:"date"`
+	Foods []Food `json:"foods"`
 }
 
-type Foods []Food
+type Food struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+type Menus []Menu
 
 const BASE_URL string = "http://ihale.manas.edu.kg/kki.php"
 
-func parseFoods() (foods Foods, err error) {
+func parseFoods() (menus Menus, err error) {
 	resp, err := http.Get(BASE_URL)
 	if (err != nil) {
-		return foods, err
+		return menus, err
 	}
 
 	root, err := html.Parse(resp.Body)
 	if (err != nil) {
-		return foods, err
+		return menus, err
 	}
 
 	matcher := func(node *html.Node) bool {
@@ -49,32 +52,32 @@ func parseFoods() (foods Foods, err error) {
 
 	for _, line := range lines {
 		rawFoods := scrape.FindAll(line, scrape.ByTag(atom.Td))
-		food := Food{}
+		menu := Menu{}
 		for id, rawFood := range rawFoods {
 			if id == 0 {
-				food.Date = scrape.Text(rawFood)
-			} else if id == 1 {
-				food.FirstFood = scrape.Text(rawFood)
-			} else if id == 3 {
-				food.SecondFood = scrape.Text(rawFood)
-			} else if id == 5 {
-				food.ThirdFood = scrape.Text(rawFood)
-			} else if id == 7 {
-				food.FourthFood = scrape.Text(rawFood)
+				menu.Date = scrape.Text(rawFood)
+			} else if (id == 1 || id == 3 || id == 5 || id == 7) {
+				name := scrape.Text(rawFood)
+				menu.Foods = append(menu.Foods, Food{Name:name, Slug:slugify.Slugify(name)})
 			}
 		}
-		foods = append(foods, food)
+		menus = append(menus, menu)
 	}
 
-	return foods, nil
+	return menus, nil
 }
 
 func FoodsHandler(w http.ResponseWriter, r *http.Request) {
-	foods, _ := parseFoods()
+	menus, _ := parseFoods()
 
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(foods)
+	json.NewEncoder(w).Encode(menus)
+}
+
+func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+	w.WriteHeader(http.StatusNotFound)
 }
 
 func main() {
@@ -83,6 +86,7 @@ func main() {
 		port = "8080"
 	}
 	router := mux.NewRouter().StrictSlash(true)
-	router.HandleFunc("/foods", FoodsHandler)
+	router.HandleFunc("/menus", FoodsHandler)
+	router.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
 	log.Fatal(http.ListenAndServe(":" + port, router))
 }
