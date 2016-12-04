@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"os"
 	"fmt"
+	"regexp"
+	"errors"
 
 	"github.com/yhat/scrape"
 	"golang.org/x/net/html"
@@ -22,6 +24,11 @@ type Menu struct {
 type Food struct {
 	Name     string `json:"name"`
 	ImageUrl string `json:"image_url"`
+}
+
+type ApiError struct {
+	Code        uint16 `json:"code"`
+	Description string `json:"description"`
 }
 
 type Menus []Menu
@@ -73,7 +80,21 @@ func getImageUrl(name string) string {
 	return fmt.Sprintf(CLOUDINARY_IMAGE_URL, slugify.Slugify(name))
 }
 
-func FoodsHandler(w http.ResponseWriter, r *http.Request) {
+func isValidDate(date string) bool {
+	validDate := regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}$`)
+	return validDate.MatchString(date)
+}
+
+func getMenuByDate(menus Menus, date string) (foundMenu Menu, err error) {
+	for _, menu := range menus {
+		if menu.Date == date {
+			return menu, nil
+		}
+	}
+	return foundMenu, errors.New("Menu by date not found")
+}
+
+func MenusHandler(w http.ResponseWriter, r *http.Request) {
 	menus, _ := parseFoods()
 
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
@@ -81,9 +102,34 @@ func FoodsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(menus)
 }
 
+func MenuHandler(w http.ResponseWriter, r *http.Request) {
+	date := mux.Vars(r)["date"]
+
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+
+	if !isValidDate(date) {
+		err := ApiError{Code:http.StatusBadRequest, Description:"invalid date format"}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(err)
+	} else {
+		menus, _ := parseFoods()
+		menu, err := getMenuByDate(menus, date)
+		if err != nil {
+			err := ApiError{Code:http.StatusNotFound, Description:http.StatusText(http.StatusNotFound)}
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(err)
+		} else {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(menu)
+		}
+	}
+}
+
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	w.WriteHeader(http.StatusNotFound)
+	err := ApiError{Code:http.StatusNotFound, Description: http.StatusText(http.StatusNotFound) }
+	json.NewEncoder(w).Encode(err)
 }
 
 func main() {
@@ -92,7 +138,8 @@ func main() {
 		port = "8080"
 	}
 	router := mux.NewRouter().StrictSlash(true)
-	router.HandleFunc("/menus", FoodsHandler)
+	router.HandleFunc("/menus", MenusHandler)
+	router.HandleFunc("/menus/{date:[0-9-]+}", MenuHandler);
 	router.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
 	log.Fatal(http.ListenAndServe(":" + port, router))
 }
