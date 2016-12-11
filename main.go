@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"regexp"
 	"errors"
+	"time"
 
 	"github.com/yhat/scrape"
 	"golang.org/x/net/html"
@@ -125,6 +126,24 @@ func MenuHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func TodayMenuHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+
+	location, _ := time.LoadLocation("Asia/Almaty")
+	date := time.Now().In(location).Format("2006-01-02")
+
+	menus, _ := parseFoods()
+	menu, err := getMenuByDate(menus, date)
+	if err != nil {
+		err := ApiError{Code:http.StatusNotFound, Description:http.StatusText(http.StatusNotFound)}
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(err)
+	} else {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(menu)
+	}
+}
+
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	w.WriteHeader(http.StatusNotFound)
@@ -139,6 +158,7 @@ func main() {
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/menus", MenusHandler)
+	router.HandleFunc("/menus/today", TodayMenuHandler)
 	router.HandleFunc("/menus/{date:[0-9-]+}", MenuHandler);
 	router.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
 	log.Fatal(http.ListenAndServe(":" + port, router))
