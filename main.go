@@ -5,7 +5,6 @@ import (
 	"log"
 	"encoding/json"
 	"os"
-	"fmt"
 	"regexp"
 	"errors"
 	"time"
@@ -14,17 +13,17 @@ import (
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
 	"github.com/gorilla/mux"
-	"github.com/Machiel/slugify"
 )
 
 type Menu struct {
-	Date  string `json:"date"`
-	Foods []Food `json:"foods"`
+	Date          string `json:"date"`
+	Foods         []Food `json:"foods"`
+	TotalCalories string `json:"total_calories"`
 }
 
 type Food struct {
 	Name     string `json:"name"`
-	ImageUrl string `json:"image_url"`
+	Calories string `json:"calories"`
 }
 
 type ApiError struct {
@@ -34,17 +33,16 @@ type ApiError struct {
 
 type Menus []Menu
 
-const BASE_URL string = "http://ihale.manas.edu.kg/kki.php"
-const CLOUDINARY_IMAGE_URL = "http://res.cloudinary.com/itashiev/image/upload/%s.jpeg";
+const BASE_URL string = "http://manasbis.manas.edu.kg/menu/"
 
 func parseFoods() (menus Menus, err error) {
 	resp, err := http.Get(BASE_URL)
-	if (err != nil) {
+	if err != nil {
 		return menus, err
 	}
 
 	root, err := html.Parse(resp.Body)
-	if (err != nil) {
+	if err != nil {
 		return menus, err
 	}
 
@@ -58,27 +56,33 @@ func parseFoods() (menus Menus, err error) {
 		return false
 	}
 
-	lines := scrape.FindAll(root, matcher)
+	trs := scrape.FindAll(root, matcher)
 
-	for _, line := range lines {
-		rawFoods := scrape.FindAll(line, scrape.ByTag(atom.Td))
-		menu := Menu{}
-		for id, rawFood := range rawFoods {
-			if id == 0 {
-				menu.Date = scrape.Text(rawFood)
-			} else if (id == 1 || id == 3 || id == 5 || id == 7) {
-				name := scrape.Text(rawFood)
-				menu.Foods = append(menu.Foods, Food{Name:name, ImageUrl:getImageUrl(name)})
-			}
+	for _, tr := range trs {
+		tds := scrape.FindAll(tr, scrape.ByTag(atom.Td))
+		var elements []string
+		for _, td := range tds {
+			elements = append(elements, scrape.Text(td))
 		}
+		menu := Menu{}
+
+		elementsQty := len(elements)
+		if elementsQty > 0 {
+			menu.Date = elements[0]
+		}
+
+		for i := 1; i <= 10 && elementsQty > i; i += 2 {
+			menu.Foods = append(menu.Foods, Food{Name: elements[i], Calories: elements[i+1]})
+		}
+
+		if elementsQty == 12 {
+			menu.TotalCalories = elements[11]
+		}
+
 		menus = append(menus, menu)
 	}
 
 	return menus, nil
-}
-
-func getImageUrl(name string) string {
-	return fmt.Sprintf(CLOUDINARY_IMAGE_URL, slugify.Slugify(name))
 }
 
 func isValidDate(date string) bool {
@@ -109,14 +113,14 @@ func MenuHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 
 	if !isValidDate(date) {
-		err := ApiError{Code:http.StatusBadRequest, Description:"invalid date format"}
+		err := ApiError{Code: http.StatusBadRequest, Description: "invalid date format"}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(err)
 	} else {
 		menus, _ := parseFoods()
 		menu, err := getMenuByDate(menus, date)
 		if err != nil {
-			err := ApiError{Code:http.StatusNotFound, Description:http.StatusText(http.StatusNotFound)}
+			err := ApiError{Code: http.StatusNotFound, Description: http.StatusText(http.StatusNotFound)}
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(err)
 		} else {
@@ -135,7 +139,7 @@ func TodayMenuHandler(w http.ResponseWriter, r *http.Request) {
 	menus, _ := parseFoods()
 	menu, err := getMenuByDate(menus, date)
 	if err != nil {
-		err := ApiError{Code:http.StatusNotFound, Description:http.StatusText(http.StatusNotFound)}
+		err := ApiError{Code: http.StatusNotFound, Description: http.StatusText(http.StatusNotFound)}
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(err)
 	} else {
@@ -147,7 +151,7 @@ func TodayMenuHandler(w http.ResponseWriter, r *http.Request) {
 func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	w.WriteHeader(http.StatusNotFound)
-	err := ApiError{Code:http.StatusNotFound, Description: http.StatusText(http.StatusNotFound) }
+	err := ApiError{Code: http.StatusNotFound, Description: http.StatusText(http.StatusNotFound)}
 	json.NewEncoder(w).Encode(err)
 }
 
@@ -159,7 +163,7 @@ func main() {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/menus", MenusHandler)
 	router.HandleFunc("/menus/today", TodayMenuHandler)
-	router.HandleFunc("/menus/{date:[0-9-]+}", MenuHandler);
+	router.HandleFunc("/menus/{date:[0-9-]+}", MenuHandler)
 	router.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
-	log.Fatal(http.ListenAndServe(":" + port, router))
+	log.Fatal(http.ListenAndServe(":"+port, router))
 }
