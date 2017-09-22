@@ -27,6 +27,6 @@ curl -i -H "Accept: application/json" \
         -X GET  http://localhost:8000/menus/2017-09-28
 ```
 
-### Deploy on Heroku
+### Deploying on Heroku
 
-You can deploy this service to Heroku. Just create app on Heroku and use it!
+You can deploy this service on Heroku. Just create app on Heroku and use it!
