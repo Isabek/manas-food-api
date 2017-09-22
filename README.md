@@ -14,8 +14,8 @@ PORT=8000 go run main.go #by default port is 8080
 #### Get all available menus
 
 ```bash
-curl -i -H "Accept: application/json" 
-        -H "Content-Type: application/json" 
+curl -i -H "Accept: application/json" \
+        -H "Content-Type: application/json" \ 
         -X GET  http://localhost:8000/menus
 ```
 
