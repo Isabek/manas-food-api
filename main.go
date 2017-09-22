@@ -7,8 +7,6 @@ import (
 	"os"
 	"regexp"
 	"errors"
-	"time"
-
 	"github.com/yhat/scrape"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/atom"
@@ -100,7 +98,13 @@ func getMenuByDate(menus Menus, date string) (foundMenu Menu, err error) {
 }
 
 func MenusHandler(w http.ResponseWriter, r *http.Request) {
-	menus, _ := parseFoods()
+	menus, err := parseFoods()
+	if err != nil {
+		err := ApiError{Code: http.StatusBadRequest, Description: "Error occurred during parsing"}
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(err)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	w.WriteHeader(http.StatusOK)
@@ -113,11 +117,19 @@ func MenuHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 
 	if !isValidDate(date) {
-		err := ApiError{Code: http.StatusBadRequest, Description: "invalid date format"}
+		err := ApiError{Code: http.StatusBadRequest, Description: "Invalid date format"}
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(err)
 	} else {
-		menus, _ := parseFoods()
+		menus, err := parseFoods()
+
+		if err != nil {
+			err := ApiError{Code: http.StatusBadRequest, Description: "Error occurred during parsing"}
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(err)
+			return
+		}
+
 		menu, err := getMenuByDate(menus, date)
 		if err != nil {
 			err := ApiError{Code: http.StatusNotFound, Description: http.StatusText(http.StatusNotFound)}
@@ -127,24 +139,6 @@ func MenuHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(menu)
 		}
-	}
-}
-
-func TodayMenuHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
-
-	location, _ := time.LoadLocation("Asia/Almaty")
-	date := time.Now().In(location).Format("2006-01-02")
-
-	menus, _ := parseFoods()
-	menu, err := getMenuByDate(menus, date)
-	if err != nil {
-		err := ApiError{Code: http.StatusNotFound, Description: http.StatusText(http.StatusNotFound)}
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(err)
-	} else {
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(menu)
 	}
 }
 
@@ -162,7 +156,6 @@ func main() {
 	}
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/menus", MenusHandler)
-	router.HandleFunc("/menus/today", TodayMenuHandler)
 	router.HandleFunc("/menus/{date:[0-9-]+}", MenuHandler)
 	router.NotFoundHandler = http.HandlerFunc(NotFoundHandler)
 	log.Fatal(http.ListenAndServe(":"+port, router))
