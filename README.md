@@ -11,7 +11,7 @@ PORT=8000 go run main.go #by default port is 8080
 
 ### Call Endpoints
 
-Get all available menus
+#### Get all available menus
 
 ```bash
 curl -i -H "Accept: application/json" 
@@ -55,7 +55,7 @@ curl -i -H "Accept: application/json"
 ]
 ```
 
-Get menu by date
+#### Get menu by date
 
 ```bash
 curl -i -H "Accept: application/json" \
